@@ -1,29 +1,37 @@
-# Set these to your actual paths
-$legalDir  = "C:\Path\To\Legal Drawings"
-$brandDir  = "C:\Path\To\Brand List"
+$legalDir = "S:\Legal Drawings\Drawings"
+$brandDir  = "S:\#Depts\380\6SIGMABRANDLIST\BRANDING\Projects Folder"
 $outFile   = "$env:USERPROFILE\Desktop\dir-tree-export.txt"
 
-@"
-=== LEGAL DRAWINGS ===
-$legalDir
-"@ | Out-File $outFile -Encoding utf8
+"=== LEGAL DRAWINGS ===" | Out-File $outFile -Encoding utf8
+"Root: $legalDir" | Add-Content $outFile
 
-Get-ChildItem -Path $legalDir -Recurse -ErrorAction SilentlyContinue |
-  Select-Object FullName, Length, LastWriteTime |
-  Format-Table -AutoSize |
-  Out-String -Width 300 |
-  Add-Content $outFile
+Get-ChildItem -LiteralPath $legalDir -Directory | Sort-Object Name | ForEach-Object {
+    "  [$($_.Name)]" | Add-Content $outFile
+    $electricalPath = Join-Path $_.FullName "Electrical"
+    if (Test-Path -LiteralPath $electricalPath) {
+        Get-ChildItem -LiteralPath $electricalPath -File -Recurse |
+            Sort-Object LastWriteTime -Descending |
+            ForEach-Object {
+                "    $($_.LastWriteTime.ToString('yyyy-MM-dd HH:mm'))  $($_.Name)  ($([math]::Round($_.Length/1KB,1)) KB)" | Add-Content $outFile
+                "    $($_.FullName)" | Add-Content $outFile
+            }
+    } else {
+        "    (no Electrical subfolder)" | Add-Content $outFile
+    }
+}
 
-@"
+"`n=== BRAND LIST ===" | Add-Content $outFile
+"Root: $brandDir" | Add-Content $outFile
 
-=== BRAND LIST ===
-$brandDir
-"@ | Add-Content $outFile
+Get-ChildItem -LiteralPath $brandDir -Directory | Sort-Object Name | ForEach-Object {
+    "  [$($_.Name)]" | Add-Content $outFile
+    Get-ChildItem -LiteralPath $_.FullName -File |
+        Where-Object { -not $_.Name.StartsWith("~$") } |
+        Sort-Object LastWriteTime -Descending |
+        ForEach-Object {
+            "    $($_.LastWriteTime.ToString('yyyy-MM-dd HH:mm'))  $($_.Name)  ($([math]::Round($_.Length/1KB,1)) KB)" | Add-Content $outFile
+        }
+}
 
-Get-ChildItem -Path $brandDir -Recurse -ErrorAction SilentlyContinue |
-  Select-Object FullName, Length, LastWriteTime |
-  Format-Table -AutoSize |
-  Out-String -Width 300 |
-  Add-Content $outFile
-
-Write-Host "Saved to $outFile"
+Write-Host "Done -> $outFile"
+Invoke-Item $outFile
